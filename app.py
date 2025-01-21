@@ -1,0 +1,180 @@
+from flask import Flask, request, render_template, send_file
+import pandas as pd
+import matplotlib.pyplot as plt
+from transformers import pipeline
+import joblib
+import spacy
+from collections import defaultdict
+import re
+
+# Import retention strategies file
+from retention_strategies import retention_strategies
+
+app = Flask(__name__)
+
+# Load the trained SVM model and TF-IDF vectorizer for dissatisfaction factors
+model = joblib.load(r"D:\Downloads\UTP\FYP\svm_model2.pkl")
+tfidf_vectorizer = joblib.load(r"D:\Downloads\UTP\FYP\tfidf_vectorizer_svm2.pkl")
+
+# Load the SA model and TF-IDF vectorizer for sentiment analysis
+sa_model = joblib.load(r"D:\Downloads\UTP\FYP\sa_model.pkl")
+tfidf_vectorizer_sa = joblib.load(r"D:\Downloads\UTP\FYP\tfidf_vectorizer_sa.pkl")
+
+# Load the English language model for preprocessing
+nlp = spacy.load("en_core_web_sm")
+
+# Load the T5 summarization model
+summarizer = pipeline("summarization", model="t5-small")
+
+# Define the label mapping
+label_mapping = {
+    0: 'High Workload',
+    1: 'Lack of Autonomy',
+    2: 'Poor Location',
+    3: 'Poor Work-Life Balance',
+    4: 'Poor Career Growth',
+    5: 'Poor Work Environment',
+    6: 'Poor Job Security',
+    7: 'Lack of Benefits',
+    8: 'Poor Management System',
+    9: 'Poor Work Culture',
+    10: 'Poor Salary',
+    11: 'Poor Appraisal System',
+    12: 'Poor Leadership'
+}
+
+def preprocess(text):
+    """Preprocess the input text: lemmatization, removing stop words and punctuation."""
+    doc = nlp(text)
+    filtered_tokens = [token.lemma_ for token in doc if not token.is_stop and not token.is_punct]
+    return " ".join(filtered_tokens)
+
+def predict_dissatisfaction_factor(text):
+    """Predict the dissatisfaction factor from input text."""
+    preprocessed_input = preprocess(text)
+    features = tfidf_vectorizer.transform([preprocessed_input])
+    predicted_label_num = model.predict(features)[0]
+    predicted_label = label_mapping.get(predicted_label_num, "Unknown")
+    strategy = retention_strategies.get(predicted_label, ["No strategy available."])
+    return predicted_label, strategy
+
+def analyze_sentiment(feedback):
+    """Analyze the sentiment of the feedback using SVM model."""
+    preprocessed_input = preprocess(feedback)
+    features = tfidf_vectorizer_sa.transform([preprocessed_input])
+    predicted_label_num = sa_model.predict(features)[0]
+    sentiment = {0: 'Positive', 1: 'Negative', 2: 'Neutral'}[predicted_label_num]
+    return sentiment
+
+def split_text_into_chunks(text, max_chunk_size=500):
+    """Split text into chunks of max_chunk_size while maintaining sentence boundaries."""
+    sentences = re.split(r'(?<=[.!?]) +', text)
+    chunks = []
+    current_chunk = []
+    current_length = 0
+    
+    for sentence in sentences:
+        if current_length + len(sentence) <= max_chunk_size:
+            current_chunk.append(sentence)
+            current_length += len(sentence)
+        else:
+            chunks.append(" ".join(current_chunk))
+            current_chunk = [sentence]
+            current_length = len(sentence)
+    if current_chunk:
+        chunks.append(" ".join(current_chunk))
+    
+    return chunks
+
+def summarize_text(text, max_length=20, min_length=10):
+    """Summarize the text in chunks and combine the summaries."""
+    chunks = split_text_into_chunks(text)
+    summaries = []
+    for chunk in chunks:
+        summary = summarizer(chunk, max_length=max_length, min_length=min_length, do_sample=False)[0]['summary_text']
+        summaries.append(summary)
+    return " ".join(summaries)
+
+def clean_summary(summary):
+    """Ensure sentences start with a capital letter and proper punctuation."""
+    sentences = re.split(r'(?<=[.!?]) +', summary.strip())
+    cleaned_sentences = []
+    
+    for sentence in sentences:
+        sentence = sentence.strip()
+        if sentence:
+            sentence = sentence[0].upper() + sentence[1:]
+            sentence = ' '.join([word if i == 0 or word.isupper() else word.lower() for i, word in enumerate(sentence.split())])
+            if not sentence.endswith('.'):
+                sentence += '.'
+            cleaned_sentences.append(sentence)
+
+    cleaned_summary = ' '.join(cleaned_sentences)
+    return cleaned_summary
+
+def generate_pie_chart(factor_counts):
+    """Generate a pie chart from the dissatisfaction factor counts."""
+    labels = list(factor_counts.keys())
+    sizes = list(factor_counts.values())
+    colors = plt.cm.Paired(range(len(labels)))
+    
+    plt.figure(figsize=(10, 6))
+    plt.pie(sizes, labels=labels, colors=colors, autopct='%1.1f%%', startangle=140)
+    plt.axis('equal')
+    plt.title("Dissatisfaction Factors Distribution")
+    
+    chart_path = "static/dissatisfaction_factors_pie_chart.png"
+    plt.savefig(chart_path)
+    plt.close()
+    return chart_path
+
+@app.route('/', methods=['GET', 'POST'])
+def upload_file():
+    if request.method == 'POST':
+        if 'feedback' in request.form:
+            # Text input form
+            feedback = request.form['feedback']
+            sentiment = analyze_sentiment(feedback)
+            if sentiment == 'Negative':
+                factor, strategy = predict_dissatisfaction_factor(feedback)
+                return render_template('result_single.html', feedback=feedback, sentiment=sentiment, factor=factor, strategy=strategy)
+            return render_template('result_single.html', feedback=feedback, sentiment=sentiment)
+
+        elif 'file' in request.files:
+            # File upload form
+            file = request.files['file']
+            if file.filename == '':
+                return render_template('website.html', message='No file selected. Please choose a file.')
+            df = pd.read_excel(file)
+            df['feedback'] = df['feedback'].fillna('')
+            df['sentiment'] = df['feedback'].apply(analyze_sentiment)
+            positive_feedback = " ".join(df[df['sentiment'] == 'Positive']['feedback'].tolist())
+            negative_feedback = " ".join(df[df['sentiment'] == 'Negative']['feedback'].tolist())
+            neutral_feedback = " ".join(df[df['sentiment'] == 'Neutral']['feedback'].tolist())
+            positive_summary = clean_summary(summarize_text(positive_feedback))
+            negative_summary = clean_summary(summarize_text(negative_feedback))
+            neutral_summary = clean_summary(summarize_text(neutral_feedback))
+            dissatisfaction_factors = []
+            strategies_dict = defaultdict(set)
+            for feedback in df[df['sentiment'] == 'Negative']['feedback']:
+                factor, strategy = predict_dissatisfaction_factor(feedback)
+                dissatisfaction_factors.append(factor)
+                strategies_dict[factor].update(strategy)
+            factor_counts = pd.Series(dissatisfaction_factors).value_counts().to_dict()
+            unique_strategies = {factor: list(strategies_dict[factor]) for factor in strategies_dict}
+
+            # Generate pie chart
+            pie_chart_path = generate_pie_chart(factor_counts)
+
+            return render_template('result.html', 
+                                   positive_summary=positive_summary, 
+                                   negative_summary=negative_summary, 
+                                   neutral_summary=neutral_summary, 
+                                   factor_counts=factor_counts,
+                                   strategies=unique_strategies,
+                                   pie_chart_path=pie_chart_path)
+    
+    return render_template('website.html')
+
+if __name__ == '__main__':
+    app.run(debug=True)

@@ -1,0 +1,133 @@
+# Define the retention strategy mapping
+retention_strategies = {
+    'High Workload': [
+        'Implement task management tools and prioritize workload effectively.',
+        'Provide training on time management and stress management techniques.'
+    ],
+    'Lack of Autonomy': [
+        'Delegate decision-making authority and empower employees to make decisions.',
+        'Implement participative management practices and involve employees in decision-making processes.'
+    ],
+    'Poor Location': [
+        'Offer flexible work arrangements such as remote work options or flexible hours.',
+        'Provide relocation assistance or incentives for employees who need to relocate.'
+    ],
+    'Poor Work-Life Balance': [
+        'Introduce flexible work schedules and telecommuting options.',
+        'Promote and support the use of paid time off and vacation days.'
+    ],
+    'Poor Career Growth': [
+        'Develop and communicate clear career paths and advancement opportunities.',
+        'Offer training, mentoring, and coaching programs to enhance employee skills.'
+    ],
+    'Poor Work Environment': [
+        'Improve workplace conditions, cleanliness, and aesthetics.',
+        'Foster a positive and inclusive organizational culture.'
+    ],
+    'Poor Job Security': [
+        'Enhance communication about company stability and future prospects.',
+        'Implement fair and transparent performance evaluation and feedback processes.'
+    ],
+    'Lack of Benefits': [
+        'Review and enhance employee benefits packages, including healthcare and retirement plans.',
+        'Communicate the value of existing benefits effectively to employees.'
+    ],
+    'Poor Management System': [
+        'Provide training and development programs for managers on effective leadership practices.',
+        'Implement regular feedback mechanisms and performance reviews.',
+        'Create open and transparent communication between employees and management.'
+    ],
+    'Poor Work Culture': [
+        'Promote values alignment and organizational mission through leadership and communication.',
+        'Encourage teamwork, collaboration, and inclusivity in decision-making processes.'
+    ],
+    'Poor Salary': [
+        'Conduct regular salary benchmarking and adjustments to ensure competitiveness.',
+        'Offer performance-based bonuses and incentives tied to individual and team achievements.'
+    ],
+    'Poor Appraisal System': [
+        'Revamp the performance appraisal process to ensure fairness and transparency.',
+        'Provide training for managers and employees on goal-setting and performance feedback.'
+    ],
+    'Poor Leadership': [
+        'Provide leadership training and development programs for current and aspiring leaders.',
+        'Foster a culture of mentoring and coaching to support leadership development.'
+    ]
+}
+
+
+# Add a new column 'label' based on 'label_num'
+df['label'] = df['label_num'].map(label_mapping)
+
+from flask import Flask, request, render_template
+import pandas as pd
+import joblib
+import spacy
+from sklearn.feature_extraction.text import TfidfVectorizer
+
+app = Flask(__name__)
+
+# Load the trained model and TF-IDF vectorizer
+model = joblib.load(r"D:\Downloads\UTP\FYP\svm_model.pkl")
+tfidf_vectorizer = joblib.load(r"D:\Downloads\UTP\FYP\tfidf_vectorizer_svm.pkl")
+
+# Load the English language model for preprocessing
+nlp = spacy.load("en_core_web_sm")
+
+# Define the label mapping
+label_mapping = {
+    0: 'High Workload',
+    1: 'Lack of Autonomy',
+    2: 'Poor Location',
+    3: 'Poor Work-Life Balance',
+    4: 'Poor Career Growth',
+    5: 'Poor Work Environment',
+    6: 'Poor Job Security',
+    7: 'Lack of Benefits',
+    8: 'Poor Management System',
+    9: 'Poor Work Culture',
+    10: 'Poor Salary',
+    11: 'Poor Appraisal System',
+    12: 'Poor Leadership'
+}
+
+def preprocess(text):
+    """Preprocess the input text: lemmatization, removing stop words and punctuation."""
+    doc = nlp(text)
+    filtered_tokens = [token.lemma_ for token in doc if not token.is_stop and not token.is_punct]
+    return " ".join(filtered_tokens)
+
+def predict_dissatisfaction_factor(text):
+    """Predict the dissatisfaction factor from input text."""
+    preprocessed_input = preprocess(text)
+    features = tfidf_vectorizer.transform([preprocessed_input])
+    predicted_label_num = model.predict(features)[0]
+    predicted_label = label_mapping.get(predicted_label_num, "Unknown")
+    return predicted_label
+
+@app.route('/', methods=['GET', 'POST'])
+def upload_file():
+    if request.method == 'POST':
+        file = request.files['file']
+        if file.filename == '':
+            return render_template('website.html', message='No file selected. Please choose a file.')
+
+        # Load Excel file into pandas DataFrame
+        df = pd.read_excel(file)
+        feedbacks = df['cons'].tolist()  # Assuming 'cons' is the column name
+        
+        # Predict dissatisfaction factors for each feedback
+        dissatisfaction_factors = []
+        for feedback in feedbacks:
+            predicted_label = predict_dissatisfaction_factor(feedback)
+            dissatisfaction_factors.append(predicted_label)
+        
+        # Count occurrences of each dissatisfaction factor
+        factor_counts = pd.Series(dissatisfaction_factors).value_counts().to_dict()
+        
+        return render_template('result.html', factors=factor_counts)
+    
+    return render_template('website.html')
+
+if __name__ == '__main__':
+    app.run(debug=True)
