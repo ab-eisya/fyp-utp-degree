@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Feedback Analysis Result</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles_result.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>Employee Feedback Analysis Summary</h1>
+        
+        <div class="summary">
+            <h2>Positive Feedback Summary</h2>
+            <p>{{ positive_summary }}</p>
+        </div>
+        
+        <div class="summary">
+            <h2>Negative Feedback Summary</h2>
+            <p>{{ negative_summary }}</p>
+        </div>
+        
+        <div class="summary">
+            <h2>Neutral Feedback Summary</h2>
+            <p>{{ neutral_summary }}</p>
+        </div>
+
+        <div class="dissatisfaction">
+            <h2>Dissatisfaction Factors</h2>
+            <ul>
+                {% for factor, count in factor_counts.items() %}
+                <li>{{ factor }}: {{ count }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+        
+        <div class="strategies">
+            <h2>Retention Strategies</h2>
+            {% for factor, strategy_list in strategies.items() %}
+            <h3>{{ factor }}</h3>
+            <ul>
+                {% for strategy in strategy_list %}
+                <li>{{ strategy }}</li>
+                {% endfor %}
+            </ul>
+            {% endfor %}
+        </div>
+
+        <div class="pie_chart">
+            <h2>Dissatisfaction Factors Distribution</h2>
+            <img src="{{ url_for('static', filename=pie_chart_path.split('/')[-1]) }}" alt="Dissatisfaction Factors Pie Chart">
+        </div>
+        
+        <a href="/">Go Back</a>
+    </div>
+</body>
+</html>

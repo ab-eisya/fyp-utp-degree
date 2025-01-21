@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Employee Dissatisfaction Factor</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles_website.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>Employee Feedback Analysis</h1>
+        <p>Enter employee feedback:</p>
+        <form method="POST">
+            <textarea name="feedback" rows="4" cols="50"></textarea><br>
+            <input type="submit" value="Analyze Feedback">
+        </form>
+        <p>Or upload your file:</p>
+        <form action="/" method="post" enctype="multipart/form-data">
+            <input type="file" name="file"><br>
+            <input type="submit" value="Upload File">
+        </form>
+    </div>
+</body>
+</html>

@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Employee Feedback Sentiment Analysis</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles_result_single.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>Employee Feedback Sentiment Analysis</h1>
+        <div class="summary">
+            <h2>Feedback:</h2>
+            <p>{{ feedback }}</p>
+        </div>
+        <div class="summary">
+            <h2>Sentiment:</h2>
+            <p>{{ sentiment }}</p>
+        </div>
+        {% if sentiment == 'Negative' %}
+        <div class="dissatisfaction">
+            <h2>Dissatisfaction Factor:</h2>
+            <p>{{ factor }}</p>
+        </div>
+        <div class="strategies">
+            <h2>Recommended Retention Strategy:</h2>
+            <ul>
+                {% for item in strategy %}
+                <li>{{ item }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+        <a href="/">Go Back</a>
+    </div>
+</body>
+</html>

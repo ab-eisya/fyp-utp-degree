@@ -1,0 +1,47 @@
+body {
+    font-family: Arial, sans-serif;
+    background-color: #A7E6FF;
+    color: #050C9C;
+    margin: 0;
+    padding: 0;
+}
+
+.container {
+    width: 50%;
+    margin: 0 auto;
+    padding: 20px;
+    background-color: #FFF;
+    border-radius: 10px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+}
+
+h1, h2 {
+    color: #3572EF;
+}
+
+.summary p, .dissatisfaction p, .strategies p {
+    background-color: #E0F7FF;
+    padding: 10px;
+    border-radius: 5px;
+    box-shadow: 0 0 5px rgba(0, 0, 0, 0.1);
+}
+
+a {
+    display: inline-block;
+    padding: 10px 20px;
+    background-color: #3572EF;
+    color: #FFF;
+    text-decoration: none;
+    border-radius: 5px;
+}
+
+a:hover {
+    background-color: #050C9C;
+}
+
+@media (max-width: 600px) {
+    .container {
+        width: 100%;
+        padding: 10px;
+    }
+}
